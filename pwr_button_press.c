@@ -7,7 +7,7 @@
 #include <unistd.h>
 
 
-#define SLEEP_TIME_SEC (70)
+#define SLEEP_TIME_SEC (6)
 #define MAX_CONT_SYSTEM_REBOOT_SECS (1800)
 
 #define PWR_INPUT_FILE "/dev/input/event0"
@@ -71,6 +71,7 @@ int panel_input_point(int x, int y, int state)
 
 int find_thread_there(char *name)
 {
+	int cnts =0;
 	char cmds[64] = {0};
 	sprintf(cmds, "ps | grep \'%s\'", name);
 	//printf("%s %d === %s\n", __func__, __LINE__, cmds);
@@ -81,7 +82,12 @@ int find_thread_there(char *name)
 	char buffer[128] = {0};
 	while (NULL != fgets(buffer, 128, fp)) //逐行读取执行结果并打印
 	{
+
 		printf("PID:  %s \n", buffer);
+		if (cnts++ == 0)
+			continue;
+		printf("%s %d\n", __func__, __LINE__);
+
 		pclose(fp);
 		return 1;
 	};
@@ -122,10 +128,15 @@ int main(void)
 
 	printf("%s %d\n", __func__, __LINE__);
 
-	//char arg[300] = "sh /data/auto_test_monkey.sh &";
-	char arg[80] = "sh /data/run.sh &"; //run nenamark2
+	char arg[300] = "sh /data/auto_test_monkey.sh &";
+	//char arg[80] = "sh /data/run.sh &"; //run nenamark2
 	char buf[256];
 	int continues_sys_reboot = 0;
+
+	ret = find_thread_there(" sh");
+	printf("%s %d\n", __func__, ret);
+
+	system(arg);
 
 	while(1) {
 		panel_fd = open(PANEL_INPUT_FILE, O_RDWR);
@@ -135,19 +146,29 @@ int main(void)
 			return -1;
 		}
 		//printf("%s %d\n", __func__, __LINE__);
+		ret = find_thread_there(" sh");
+		printf("%s %d\n", __func__, ret);
 
 		memset(buf,0,256);
 		//printf("%s %d\n", __func__, __LINE__);
 		read(panel_fd, buf, 256);
 		close(panel_fd);
 		printf("%s %d brightness: %s\n", __func__, __LINE__, buf);
-		//if (buf[0] == '0') {
-			printf("main thread running \n");
-			system(arg);
-			printf("main thread running 2\n");
-		//}
 
-		ret = find_thread_there("bootanimation");
+		if (buf[0] == '0') {
+			system("input keyevent 26;");
+			printf("main thread running \n");
+			//system(arg);
+			printf("main thread running 2\n");
+		}
+
+		//rerun monkey
+		ret = find_thread_there(" sh");
+		printf("%s %d\n", __func__, ret);
+		if (ret == 0) {
+			system(arg);
+		}
+#if 0
 		if (ret) {
 			continues_sys_reboot = continues_sys_reboot + 1;
 			printf("%s continues_sys_reboot:%d\n", __func__, continues_sys_reboot);
@@ -158,7 +179,7 @@ int main(void)
 			printf("system continues reboot!!!! make it crash\n");
 			system("echo c > /proc/sysrq-trigger");
 		}
-
+#endif
 
 		usleep(SLEEP_TIME_SEC*1000000);
 	}
