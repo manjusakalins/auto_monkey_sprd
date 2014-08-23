@@ -7,7 +7,7 @@
 #include <unistd.h>
 
 
-#define SLEEP_TIME_SEC (6)
+#define SLEEP_TIME_SEC (60)
 #define MAX_CONT_SYSTEM_REBOOT_SECS (1800)
 
 #define PWR_INPUT_FILE "/dev/input/event0"
