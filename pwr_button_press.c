@@ -10,8 +10,10 @@
 #define SLEEP_TIME_SEC (60)
 #define MAX_CONT_SYSTEM_REBOOT_SECS (1800)
 
-#define PWR_INPUT_FILE "/dev/input/event0"
-#define PANEL_INPUT_FILE "/sys/class/leds/lcd-backlight/brightness"
+//#define PWR_INPUT_FILE "/dev/input/event0"
+//#define PANEL_INPUT_FILE "/sys/class/leds/lcd-backlight/brightness"
+#define PWR_INPUT_FILE "/dev/input/event3"
+#define PANEL_INPUT_FILE "/sys/class/backlight/sprd_backlight/brightness"
 enum point_state {
 	POINT_MOVE,
 	POINT_ON,
@@ -73,8 +75,8 @@ int find_thread_there(char *name)
 {
 	int cnts =0;
 	char cmds[64] = {0};
-	sprintf(cmds, "ps | grep \'%s\'", name);
-	//printf("%s %d === %s\n", __func__, __LINE__, cmds);
+	sprintf(cmds, "ps -Z | grep root | grep \"%s\"", name);
+	printf("%s %d === %s\n", __func__, __LINE__, cmds);
 	FILE *fp = popen(cmds, "r");//打开管道，执行shell 命令
 	if (!fp)
 		printf("%s %d\n", __func__, __LINE__);
@@ -130,12 +132,12 @@ int main(void)
 
 	char arg[300] = "sh /data/auto_test_monkey.sh &";
 	//char arg[80] = "sh /data/run.sh &"; //run nenamark2
-	char buf[256];
+	char buf[256] = "setenforce 0";
 	int continues_sys_reboot = 0;
 
-	ret = find_thread_there(" sh");
+	//ret = find_thread_there(" sh");
 	printf("%s %d\n", __func__, ret);
-
+	system(buf);
 	system(arg);
 
 	while(1) {
