@@ -218,7 +218,7 @@ int main(void)
 		}
 #endif
 
-		usleep(SLEEP_TIME_SEC*100000);
+		usleep(SLEEP_TIME_SEC*800000);
 	}
 
 
