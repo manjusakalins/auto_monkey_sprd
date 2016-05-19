@@ -1,1 +1,1 @@
-arm-linux-gnueabi-gcc -static pwr_button_press.c -o pwr_button_press
+arm-linux-gnueabi-gcc -static pwr_button_press.c -o auto_mon

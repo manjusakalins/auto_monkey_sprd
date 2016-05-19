@@ -14,6 +14,7 @@
 //#define PANEL_INPUT_FILE "/sys/class/leds/lcd-backlight/brightness"
 #define PWR_INPUT_FILE "/dev/input/event3"
 #define PANEL_INPUT_FILE "/sys/class/backlight/sprd_backlight/brightness"
+#define USB_FUNC_FILE "/sys/class/android_usb/android0/functions"
 enum point_state {
 	POINT_MOVE,
 	POINT_ON,
@@ -21,6 +22,7 @@ enum point_state {
 };
 int pwr_fd;
 int panel_fd;
+int usb_fd;
 
 int write_file(int fd, int type, int code, int value)
 {
@@ -98,41 +100,56 @@ int find_thread_there(char *name)
 	return 0;
 }
 
+int open_file(char *name, int flag)
+{
+    int ret_fd;
+    ret_fd = open(name, flag);
+	if (ret_fd < 0) {
+		printf("open file failed %d, errno: %d, %s\n", ret_fd, errno, name);
+		return -1;
+	}
+	printf("open file ok: %d, %s\n", ret_fd, name);
+	return ret_fd;
+
+}
+int close_file(int fd)
+{
+    close(fd);
+}
 int main(void)
 {
 	int ret;
+	system("setenforce 0");
 	struct input_event ev;
 	printf("%s %d\n", __func__, __LINE__);
-	pwr_fd = open(PWR_INPUT_FILE, O_RDWR);
-	if (pwr_fd < 0) {
-		printf("open file failed %d, errno: %d, %s\n", pwr_fd, errno, PWR_INPUT_FILE);
-		return -1;
-	}
-	printf("%s %d\n", __func__, __LINE__);
 
-	panel_fd = open(PANEL_INPUT_FILE, O_RDWR);
+	pwr_fd = open_file(PWR_INPUT_FILE, O_RDWR);
+	if (pwr_fd < 0) return -1;
+	panel_fd = open_file(PANEL_INPUT_FILE, O_RDWR);
 	if (panel_fd < 0) {
-		close(pwr_fd);
-		printf("error file open %d, errno: %d, %s\n", panel_fd, errno, PANEL_INPUT_FILE);
+		close_file(pwr_fd);
 		return -1;
 	}
 	printf("%s %d\n", __func__, __LINE__);
 
+#if 0
 	//ret = write(pwr_fd, &ret, sizeof(ret));
 	if (ret < 0) {
-		close(pwr_fd);
-		close(panel_fd);
+		close_file(pwr_fd);
+		close_file(panel_fd);
 		printf("error file open %d, ret: %d, errno: %d, %d\n", panel_fd, ret, errno, __LINE__);
 		return -1;
 	}
-	close(pwr_fd);
-	close(panel_fd);
+#endif
+
+	close_file(pwr_fd);
+	close_file(panel_fd);
 
 	printf("%s %d\n", __func__, __LINE__);
 
 	char arg[300] = "sh /data/auto_test_monkey.sh &";
 	//char arg[80] = "sh /data/run.sh &"; //run nenamark2
-	char buf[256] = "setenforce 0";
+	char buf[256];
 	int continues_sys_reboot = 0;
 
 	//ret = find_thread_there(" sh");
@@ -141,16 +158,21 @@ int main(void)
 	system(arg);
 
 	while(1) {
-		panel_fd = open(PANEL_INPUT_FILE, O_RDWR);
-		if (panel_fd < 0) {
-			close(pwr_fd);
-			printf("error file open %d, errno: %d, %s\n", panel_fd, errno, PANEL_INPUT_FILE);
-			return -1;
-		}
-		//printf("%s %d\n", __func__, __LINE__);
+    	//######open file############
+		panel_fd = open_file(PANEL_INPUT_FILE, O_RDWR);
+		if (panel_fd < 0) return -1;
+
+		usb_fd = open_file(USB_FUNC_FILE, O_RDWR);
+	    if (usb_fd < 0) {
+	        close_file(panel_fd);
+		    return -1;
+	    }
+
+        //######## check sh runing ##############
 		ret = find_thread_there(" sh");
 		printf("%s %d\n", __func__, ret);
 
+        //########### READ brightness and power up the panel ###########
 		memset(buf,0,256);
 		//printf("%s %d\n", __func__, __LINE__);
 		read(panel_fd, buf, 256);
@@ -164,9 +186,22 @@ int main(void)
 			printf("main thread running 2\n");
 		}
 
-		//rerun monkey
+		//##################check adb enable##########################
+		memset(buf,0,256);
+		read(usb_fd, buf, 256);
+		close(usb_fd);
+		printf("%s %d brightness: %s\n", __func__, __LINE__, buf);
+		//if (strstr(buf, "adb") == NULL && strstr(buf, "ffs") == NULL){
+		if (strstr(buf, "adb") == NULL) {
+		    //disable adb while doing monkey. in bin setprop not work, we set it in shell 
+		    //ret = system("setprop sys.usb.config mass_storage,adb;");ret = system("setprop ro.sys.usb.storage.type mass_storage,adb");
+            ret = system("sh /data/adb_enable.sh &");
+    		printf("%s ret adb:%d, %d\n", __func__, errno, ret);
+		}
+
+		//##########rerun monkey################
 		ret = find_thread_there(" sh");
-		printf("%s %d\n", __func__, ret);
+		printf("%s grep sh %d\n", __func__, ret);
 		if (ret == 0) {
 			system(arg);
 		}
@@ -183,7 +218,7 @@ int main(void)
 		}
 #endif
 
-		usleep(SLEEP_TIME_SEC*1000000);
+		usleep(SLEEP_TIME_SEC*100000);
 	}
 
 
