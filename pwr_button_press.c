@@ -7,6 +7,14 @@
 #include <unistd.h>
 
 
+
+//#define LIN_DEBUG
+#ifdef LIN_DEBUG
+#define dprint printf
+#else
+#define dprint(args...)
+#endif
+
 #define SLEEP_TIME_SEC (60)
 #define MAX_CONT_SYSTEM_REBOOT_SECS (1800)
 
@@ -24,6 +32,39 @@ int pwr_fd;
 int panel_fd;
 int usb_fd;
 
+#define KEY_MAX			0x1ff
+#define KEY_CNT			(KEY_MAX+1)
+
+#define BITS_PER_BYTE		8
+#define DIV_ROUND_UP(n,d) (((n) + (d) - 1) / (d))
+#define BITS_TO_LONGS(nr)	DIV_ROUND_UP(nr, BITS_PER_BYTE * sizeof(long))
+#define BITS_PER_LONG   (BITS_PER_BYTE * sizeof(long))
+
+unsigned long keybit[BITS_TO_LONGS(KEY_CNT)];
+
+static int test_bit(unsigned int nr, unsigned long *addr)
+{
+    return 1 & (addr[nr/BITS_PER_LONG] >> (nr & (BITS_PER_LONG-1)));
+}
+
+/* By liw. */
+static char *last_strstr(const char *haystack, const char *needle)
+{
+    dprint("start to s: %s\n", haystack);
+    if (*needle == '\0')
+        return (char *) haystack;
+
+    char *result = NULL;
+    for (;;) {
+        char *p = strstr(haystack, needle);
+        if (p == NULL)
+            break;
+        result = p;
+        haystack = p + 1;
+    }
+
+    return result;
+}
 int write_file(int fd, int type, int code, int value)
 {
 	struct input_event ev;
@@ -72,7 +113,55 @@ int panel_input_point(int x, int y, int state)
 	usleep(100000);
 	return 0;
 }
+void process_input_key_string(char *key, unsigned long *bits)
+{
+    int idx = 0;
+    char *ori = key;
+    char *cur_str = last_strstr(key, " ");
+    while (cur_str != NULL) {
+        int re = sscanf(cur_str, " %x", &bits[idx]);
+        dprint("get: %s, %d, %x\n", cur_str, re, bits[idx]);
+        cur_str[0] = '\0';
+        idx++;
+        cur_str = last_strstr(key, " ");
+    }
+    //last str
+    int re = sscanf(key, " %x", &bits[idx]);
+    dprint("get: %s, %d, %x\n", key, re, bits[idx]);
+}
+int find_pwr_event(void)
+{
+#define CNT_BUF_SIZE (256)
+    char strbuf[128];
+    char content_buf[CNT_BUF_SIZE];
+    char *capa="/sys/class/input/event%d/device/capabilities/key";
+    int max_cnt = 9;
+    int idx = 0;
+    int tmp_fd;
+    for (idx=0; idx < max_cnt; idx++) {
+        snprintf(strbuf, 128, capa, idx);
+        tmp_fd = open_file(strbuf, O_RDONLY);
+	    if (tmp_fd < 0) break;
+        memset(content_buf, 0, CNT_BUF_SIZE);
+        read(tmp_fd, content_buf, CNT_BUF_SIZE);
+        printf("%s", content_buf);
+        process_input_key_string(content_buf, keybit);
 
+        int idy;
+        for (idy=0; idy < 12; idy++)
+            dprint("%d: %lx\n", idx, keybit[idx]);
+
+        if (test_bit(116, keybit)) {
+            printf(">>>>>>>>>>>>>GOT pwr key event %d\n", idx);
+            close_file(tmp_fd);
+            return idx;
+        } else
+            printf(">>>>>>>>>>>>>not find %lx %x\n", keybit[116/BITS_PER_LONG], 1<<116%BITS_PER_LONG);
+        close_file(tmp_fd);
+
+    }
+    return -1;
+}
 int find_thread_there(char *name)
 {
 	int cnts =0;
@@ -119,9 +208,15 @@ int close_file(int fd)
 int main(void)
 {
 	int ret;
+    int pwr_idx=-1;
 	system("setenforce 0");
 	struct input_event ev;
 	printf("%s %d\n", __func__, __LINE__);
+    pwr_idx = find_pwr_event();
+    if (pwr_idx < 0) {
+        printf("!!!! not find the pwr key input device\n");
+        return -1;
+    }
 
 	pwr_fd = open_file(PWR_INPUT_FILE, O_RDWR);
 	if (pwr_fd < 0) return -1;
