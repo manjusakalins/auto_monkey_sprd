@@ -19,9 +19,9 @@
 #define MAX_CONT_SYSTEM_REBOOT_SECS (1800)
 
 //#define PWR_INPUT_FILE "/dev/input/event0"
-//#define PANEL_INPUT_FILE "/sys/class/leds/lcd-backlight/brightness"
+#define PANEL_INPUT_FILE_MTK "/sys/class/leds/lcd-backlight/brightness"
 #define PWR_INPUT_FILE "/dev/input/event3"
-#define PANEL_INPUT_FILE "/sys/class/backlight/sprd_backlight/brightness"
+#define PANEL_INPUT_FILE_SPRD "/sys/class/backlight/sprd_backlight/brightness"
 #define USB_FUNC_FILE "/sys/class/android_usb/android0/functions"
 enum point_state {
 	POINT_MOVE,
@@ -44,26 +44,26 @@ unsigned long keybit[BITS_TO_LONGS(KEY_CNT)];
 
 static int test_bit(unsigned int nr, unsigned long *addr)
 {
-    return 1 & (addr[nr/BITS_PER_LONG] >> (nr & (BITS_PER_LONG-1)));
+	return 1 & (addr[nr/BITS_PER_LONG] >> (nr & (BITS_PER_LONG-1)));
 }
 
 /* By liw. */
 static char *last_strstr(const char *haystack, const char *needle)
 {
-    dprint("start to s: %s\n", haystack);
-    if (*needle == '\0')
-        return (char *) haystack;
+	dprint("start to s: %s\n", haystack);
+	if (*needle == '\0')
+		return (char *) haystack;
 
-    char *result = NULL;
-    for (;;) {
-        char *p = strstr(haystack, needle);
-        if (p == NULL)
-            break;
-        result = p;
-        haystack = p + 1;
-    }
+	char *result = NULL;
+	for (;;) {
+		char *p = strstr(haystack, needle);
+		if (p == NULL)
+			break;
+		result = p;
+		haystack = p + 1;
+	}
 
-    return result;
+	return result;
 }
 int write_file(int fd, int type, int code, int value)
 {
@@ -115,52 +115,52 @@ int panel_input_point(int x, int y, int state)
 }
 void process_input_key_string(char *key, unsigned long *bits)
 {
-    int idx = 0;
-    char *ori = key;
-    char *cur_str = last_strstr(key, " ");
-    while (cur_str != NULL) {
-        int re = sscanf(cur_str, " %x", &bits[idx]);
-        dprint("get: %s, %d, %x\n", cur_str, re, bits[idx]);
-        cur_str[0] = '\0';
-        idx++;
-        cur_str = last_strstr(key, " ");
-    }
-    //last str
-    int re = sscanf(key, " %x", &bits[idx]);
-    dprint("get: %s, %d, %x\n", key, re, bits[idx]);
+	int idx = 0;
+	char *ori = key;
+	char *cur_str = last_strstr(key, " ");
+	while (cur_str != NULL) {
+		int re = sscanf(cur_str, " %x", &bits[idx]);
+		dprint("get: %s, %d, %x\n", cur_str, re, bits[idx]);
+		cur_str[0] = '\0';
+		idx++;
+		cur_str = last_strstr(key, " ");
+	}
+	//last str
+	int re = sscanf(key, " %x", &bits[idx]);
+	dprint("get: %s, %d, %x\n", key, re, bits[idx]);
 }
 int find_pwr_event(void)
 {
 #define CNT_BUF_SIZE (256)
-    char strbuf[128];
-    char content_buf[CNT_BUF_SIZE];
-    char *capa="/sys/class/input/event%d/device/capabilities/key";
-    int max_cnt = 9;
-    int idx = 0;
-    int tmp_fd;
-    for (idx=0; idx < max_cnt; idx++) {
-        snprintf(strbuf, 128, capa, idx);
-        tmp_fd = open_file(strbuf, O_RDONLY);
-	    if (tmp_fd < 0) break;
-        memset(content_buf, 0, CNT_BUF_SIZE);
-        read(tmp_fd, content_buf, CNT_BUF_SIZE);
-        printf("%s", content_buf);
-        process_input_key_string(content_buf, keybit);
+	char strbuf[128];
+	char content_buf[CNT_BUF_SIZE];
+	char *capa="/sys/class/input/event%d/device/capabilities/key";
+	int max_cnt = 9;
+	int idx = 0;
+	int tmp_fd;
+	for (idx=0; idx < max_cnt; idx++) {
+		snprintf(strbuf, 128, capa, idx);
+		tmp_fd = open_file(strbuf, O_RDONLY);
+		if (tmp_fd < 0) break;
+		memset(content_buf, 0, CNT_BUF_SIZE);
+		read(tmp_fd, content_buf, CNT_BUF_SIZE);
+		printf("%s", content_buf);
+		process_input_key_string(content_buf, keybit);
 
-        int idy;
-        for (idy=0; idy < 12; idy++)
-            dprint("%d: %lx\n", idx, keybit[idx]);
+		int idy;
+		for (idy=0; idy < 12; idy++)
+			dprint("%d: %lx\n", idx, keybit[idx]);
 
-        if (test_bit(116, keybit)) {
-            printf(">>>>>>>>>>>>>GOT pwr key event %d\n", idx);
-            close_file(tmp_fd);
-            return idx;
-        } else
-            printf(">>>>>>>>>>>>>not find %lx %x\n", keybit[116/BITS_PER_LONG], 1<<116%BITS_PER_LONG);
-        close_file(tmp_fd);
+		if (test_bit(116, keybit)) {
+			printf(">>>>>>>>>>>>>GOT pwr key event %d\n", idx);
+			close_file(tmp_fd);
+			return idx;
+		} else
+			printf(">>>>>>>>>>>>>not find %lx %x\n", keybit[116/BITS_PER_LONG], 1<<116%BITS_PER_LONG);
+		close_file(tmp_fd);
 
-    }
-    return -1;
+	}
+	return -1;
 }
 int find_thread_there(char *name)
 {
@@ -191,8 +191,8 @@ int find_thread_there(char *name)
 
 int open_file(char *name, int flag)
 {
-    int ret_fd;
-    ret_fd = open(name, flag);
+	int ret_fd;
+	ret_fd = open(name, flag);
 	if (ret_fd < 0) {
 		printf("open file failed %d, errno: %d, %s\n", ret_fd, errno, name);
 		return -1;
@@ -203,24 +203,77 @@ int open_file(char *name, int flag)
 }
 int close_file(int fd)
 {
-    close(fd);
+	close(fd);
 }
+
+char *get_panel_bl_file(void)
+{
+	static int idx = -1;
+	int tmp_fd;
+	if (idx == -1) {
+		tmp_fd = open_file(PANEL_INPUT_FILE_MTK, O_RDWR);
+		if (tmp_fd >= 0) {
+			idx = 0;
+			close_file(tmp_fd);
+		}
+		tmp_fd = open_file(PANEL_INPUT_FILE_SPRD, O_RDWR);
+		if (tmp_fd >= 0) {
+			idx = 1;
+			close_file(tmp_fd);
+		}
+	}
+	if (idx == 0)
+		return PANEL_INPUT_FILE_MTK;
+	else if (idx == 1)
+		return PANEL_INPUT_FILE_SPRD;
+	else
+		return NULL;
+}
+int jlink_check_record_conm_start(void)
+{
+#define JLINK_RECORD_PROC_FN "/proc/jlink_fgu"
+	int fgu_fd = 0;
+	int start_flag = 0;
+	char buffer[2];
+	
+	
+	fgu_fd = open_file(JLINK_RECORD_PROC_FN, O_RDONLY);
+	read(fgu_fd, buffer, 2);
+	printf("@@@@@@@@@@@@ fgu: read out: %s\n", buffer);
+
+	sscanf(buffer, "%d", &start_flag);
+	printf("read out flag: %d\n", start_flag);
+	close_file(fgu_fd);
+	return start_flag;
+}
+
 int main(void)
 {
 	int ret;
-    int pwr_idx=-1;
+	int pwr_idx=-1;
+	char pwr_fname[64];
+	char *cur_panel_bl_fn=NULL;
 	system("setenforce 0");
 	struct input_event ev;
 	printf("%s %d\n", __func__, __LINE__);
-    pwr_idx = find_pwr_event();
-    if (pwr_idx < 0) {
-        printf("!!!! not find the pwr key input device\n");
-        return -1;
-    }
 
-	pwr_fd = open_file(PWR_INPUT_FILE, O_RDWR);
+	cur_panel_bl_fn = get_panel_bl_file();
+	if (cur_panel_bl_fn == NULL) {
+		printf("!!! not find panel bl file\n");
+		return -1;
+	}
+
+
+	pwr_idx = find_pwr_event();
+	if (pwr_idx < 0) {
+		printf("!!!! not find the pwr key input device\n");
+		return -1;
+	}
+
+	snprintf(pwr_fname, 64, "/dev/input/event%d", pwr_idx);
+	pwr_fd = open_file(pwr_fname, O_RDWR);
 	if (pwr_fd < 0) return -1;
-	panel_fd = open_file(PANEL_INPUT_FILE, O_RDWR);
+	panel_fd = open_file(cur_panel_bl_fn, O_RDWR);
 	if (panel_fd < 0) {
 		close_file(pwr_fd);
 		return -1;
@@ -239,6 +292,14 @@ int main(void)
 
 	close_file(pwr_fd);
 	close_file(panel_fd);
+	
+	//start for conm auto record
+	while (jlink_check_record_conm_start() == 0) {
+		printf("charging not done, we need to wait for start flag be 1\n");
+
+		usleep(5*800000);
+	}
+	//end for conm auto_record
 
 	printf("%s %d\n", __func__, __LINE__);
 
@@ -253,21 +314,21 @@ int main(void)
 	system(arg);
 
 	while(1) {
-    	//######open file############
-		panel_fd = open_file(PANEL_INPUT_FILE, O_RDWR);
+		//######open file############
+		panel_fd = open_file(cur_panel_bl_fn, O_RDWR);
 		if (panel_fd < 0) return -1;
 
 		usb_fd = open_file(USB_FUNC_FILE, O_RDWR);
-	    if (usb_fd < 0) {
-	        close_file(panel_fd);
-		    return -1;
-	    }
+		if (usb_fd < 0) {
+			close_file(panel_fd);
+			return -1;
+		}
 
-        //######## check sh runing ##############
+		//######## check sh runing ##############
 		ret = find_thread_there(" sh");
 		printf("%s %d\n", __func__, ret);
 
-        //########### READ brightness and power up the panel ###########
+		//########### READ brightness and power up the panel ###########
 		memset(buf,0,256);
 		//printf("%s %d\n", __func__, __LINE__);
 		read(panel_fd, buf, 256);
@@ -288,10 +349,10 @@ int main(void)
 		printf("%s %d brightness: %s\n", __func__, __LINE__, buf);
 		//if (strstr(buf, "adb") == NULL && strstr(buf, "ffs") == NULL){
 		if (strstr(buf, "adb") == NULL) {
-		    //disable adb while doing monkey. in bin setprop not work, we set it in shell 
-		    //ret = system("setprop sys.usb.config mass_storage,adb;");ret = system("setprop ro.sys.usb.storage.type mass_storage,adb");
-            ret = system("sh /data/adb_enable.sh &");
-    		printf("%s ret adb:%d, %d\n", __func__, errno, ret);
+			//disable adb while doing monkey. in bin setprop not work, we set it in shell 
+			//ret = system("setprop sys.usb.config mass_storage,adb;");ret = system("setprop ro.sys.usb.storage.type mass_storage,adb");
+			ret = system("sh /data/adb_enable.sh &");
+			printf("%s ret adb:%d, %d\n", __func__, errno, ret);
 		}
 
 		//##########rerun monkey################
