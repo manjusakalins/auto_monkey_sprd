@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<filter>
+    <app-filter name="black-app">          
+        <item>YouTube</item>
+        <item>GoogleCalendarSyncAdapter</item>
+        <item>GoogleContactsSyncAdapter</item>
+        <item>GoogleTTS</item>
+        <item>Gmail2</item>
+        <item>DeskClock</item>
+    </app-filter>
+    <app-filter name="black-app-priv"> 
+        <item>GmsCore</item>
+	<item>Phonesky</item>
+        <item>GoogleBackupTransport</item>
+        <item>GoogleFeedback</item>
+        <item>GoogleLoginService</item>
+        <item>GoogleOneTimeInitializer</item>
+        <item>GooglePartnerSetup</item>
+        <item>GoogleServicesFramework</item>
+    </app-filter>
+</filter>
