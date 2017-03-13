@@ -144,13 +144,16 @@ while(true){
 	am start com.android.settings
 	wait_act_showup com.android.settings.Settings
 	input swipe 336 508 300 1130
+	input swipe 336 508 300 1130
 	input tap 150 930
 	wait_act_showup com.android.settings.SubSettings
 	input tap 300 460
-	sleep 1
+	sleep 2
 	input tap 300 940
-	sleep 1
+	sleep 2
+	input tap 527 567
+	sleep 2
 	input tap 300 220
-	sleep 5
+	sleep 15
 }
 
