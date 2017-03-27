@@ -232,12 +232,18 @@ char *get_panel_bl_file(void)
 int jlink_check_record_conm_start(void)
 {
 #define JLINK_RECORD_PROC_FN "/proc/jlink_fgu"
+#define JLINK_MTK_FULL_FN "/proc/jlink_full"
 	int fgu_fd = 0;
 	int start_flag = 0;
 	char buffer[2];
 	
 	
 	fgu_fd = open_file(JLINK_RECORD_PROC_FN, O_RDONLY);
+	if (fgu_fd < 0) {
+		printf("@@@@@@@@@@@@ fgu: not sprd: %d\n", fgu_fd);
+		fgu_fd = open_file(JLINK_MTK_FULL_FN, O_RDONLY);
+		printf("@@@@@@@@@@@@ fgu: not sprd: %d\n", fgu_fd);
+	}
 	read(fgu_fd, buffer, 2);
 	printf("@@@@@@@@@@@@ fgu: read out: %s\n", buffer);
 
