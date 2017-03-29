@@ -1,3 +1,4 @@
+
 #include <stdio.h>
 #include <fcntl.h>
 #include <time.h>
@@ -6,7 +7,8 @@
 #include <errno.h>
 #include <unistd.h>
 
-
+//for battery auto discharge
+#define ENABLE_BATTERY_DISCHG
 
 //#define LIN_DEBUG
 #ifdef LIN_DEBUG
@@ -167,24 +169,24 @@ int find_thread_there(char *name)
 	int cnts =0;
 	char cmds[64] = {0};
 	sprintf(cmds, "ps -Z | grep root | grep \"%s\"", name);
-	printf("%s %d === %s\n", __func__, __LINE__, cmds);
+	printf("%s %d cmds: ===> %s\n", __func__, __LINE__, cmds);
 	FILE *fp = popen(cmds, "r");//打开管道，执行shell 命令
 	if (!fp)
-		printf("%s %d\n", __func__, __LINE__);
+		printf("%s %d, run pipe cmd failed\n", __func__, __LINE__);
 
 	char buffer[128] = {0};
 	while (NULL != fgets(buffer, 128, fp)) //逐行读取执行结果并打印
 	{
 
-		printf("PID:  %s \n", buffer);
+		printf("got one line PID:  %s \n", buffer);
 		if (cnts++ == 0)
 			continue;
-		printf("%s %d\n", __func__, __LINE__);
+		printf("%s %d: found one %s thread\n", __func__, __LINE__, name);
 
 		pclose(fp);
 		return 1;
 	};
-	//printf("PID:  %s", buffer);
+	printf("not found %s thread, cmd out:%s\n", name, buffer);
 	pclose(fp); //关闭返回的文件指针，注意不是用fclose噢
 	return 0;
 }
@@ -236,8 +238,8 @@ int jlink_check_record_conm_start(void)
 	int fgu_fd = 0;
 	int start_flag = 0;
 	char buffer[2];
-	
-	
+
+
 	fgu_fd = open_file(JLINK_RECORD_PROC_FN, O_RDONLY);
 	if (fgu_fd < 0) {
 		printf("@@@@@@@@@@@@ fgu: not sprd: %d\n", fgu_fd);
@@ -261,21 +263,21 @@ int main(void)
 	char *cur_panel_bl_fn=NULL;
 	system("setenforce 0");
 	struct input_event ev;
-	printf("%s %d\n", __func__, __LINE__);
+	printf("=======================>%s %d\n", __func__, __LINE__);
 
+	//find bl filename.
 	cur_panel_bl_fn = get_panel_bl_file();
 	if (cur_panel_bl_fn == NULL) {
 		printf("!!! not find panel bl file\n");
 		return -1;
 	}
 
-
+	//open pwr event
 	pwr_idx = find_pwr_event();
 	if (pwr_idx < 0) {
 		printf("!!!! not find the pwr key input device\n");
 		return -1;
 	}
-
 	snprintf(pwr_fname, 64, "/dev/input/event%d", pwr_idx);
 	pwr_fd = open_file(pwr_fname, O_RDWR);
 	if (pwr_fd < 0) return -1;
@@ -284,41 +286,31 @@ int main(void)
 		close_file(pwr_fd);
 		return -1;
 	}
-	printf("%s %d\n", __func__, __LINE__);
-
-#if 0
-	//ret = write(pwr_fd, &ret, sizeof(ret));
-	if (ret < 0) {
-		close_file(pwr_fd);
-		close_file(panel_fd);
-		printf("error file open %d, ret: %d, errno: %d, %d\n", panel_fd, ret, errno, __LINE__);
-		return -1;
-	}
-#endif
+	printf("=======================>%s %d\n", __func__, __LINE__);
 
 	close_file(pwr_fd);
 	close_file(panel_fd);
-	
+
+#ifdef ENABLE_BATTERY_DISCHG
 	//start for conm auto record
 	while (jlink_check_record_conm_start() == 0) {
-		printf("charging not done, we need to wait for start flag be 1\n");
-
+		printf("jlink charging not done, we need to wait for start flag be 1\n");
 		usleep(5*800000);
 	}
 	//end for conm auto_record
+#endif
 
-	printf("%s %d\n", __func__, __LINE__);
+	printf("=======================>%s %d\n", __func__, __LINE__);
 
 	char arg[300] = "sh /data/auto_test_monkey.sh &";
-	//char arg[80] = "sh /data/run.sh &"; //run nenamark2
 	char buf[256];
 	int continues_sys_reboot = 0;
 
-	//ret = find_thread_there(" sh");
-	printf("%s %d\n", __func__, ret);
-	system(buf);
+	ret = find_thread_there(" sh");
+	printf("%s find thread ret: %d\n", __func__, ret);
 	system(arg);
 
+	printf("=======================>%s %d: now start while loop\n", __func__, __LINE__);
 	while(1) {
 		//######open file############
 		panel_fd = open_file(cur_panel_bl_fn, O_RDWR);
@@ -332,38 +324,37 @@ int main(void)
 
 		//######## check sh runing ##############
 		ret = find_thread_there(" sh");
-		printf("%s %d\n", __func__, ret);
+		printf("%s find thread ret: %d\n", __func__, ret);
 
 		//########### READ brightness and power up the panel ###########
 		memset(buf,0,256);
-		//printf("%s %d\n", __func__, __LINE__);
 		read(panel_fd, buf, 256);
-		close(panel_fd);
-		printf("%s %d brightness: %s\n", __func__, __LINE__, buf);
+		printf("%s %d current brightness: %s\n", __func__, __LINE__, buf);
 
 		if (buf[0] == '0') {
 			system("input keyevent 26;");
-			printf("main thread running \n");
-			//system(arg);
-			printf("main thread running 2\n");
+			printf("power up the lcd, input keyevent 26\n");
 		}
 
 		//##################check adb enable##########################
 		memset(buf,0,256);
 		read(usb_fd, buf, 256);
-		close(usb_fd);
-		printf("%s %d brightness: %s\n", __func__, __LINE__, buf);
+		printf("%s %d cur usb func is: %s\n", __func__, __LINE__, buf);
 		//if (strstr(buf, "adb") == NULL && strstr(buf, "ffs") == NULL){
 		if (strstr(buf, "adb") == NULL) {
-			//disable adb while doing monkey. in bin setprop not work, we set it in shell 
+			//disable adb while doing monkey. in bin setprop not work, we set it in shell
 			//ret = system("setprop sys.usb.config mass_storage,adb;");ret = system("setprop ro.sys.usb.storage.type mass_storage,adb");
 			ret = system("sh /data/adb_enable.sh &");
-			printf("%s ret adb:%d, %d\n", __func__, errno, ret);
+			printf("%s ret enable adb:%d, %d\n", __func__, errno, ret);
 		}
+
+		//##################close file##########################
+		close(usb_fd);
+		close(panel_fd);
 
 		//##########rerun monkey################
 		ret = find_thread_there(" sh");
-		printf("%s grep sh %d\n", __func__, ret);
+		printf("%s find thread ret: %d\n", __func__, ret);
 		if (ret == 0) {
 			system(arg);
 		}
@@ -389,3 +380,4 @@ int main(void)
 	return 0;
 
 }
+
